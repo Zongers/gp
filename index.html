@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Bubble Shooter</title>
+    <link rel="icon" href="https://i.ibb.co/W48rv8hd/icon.png" type="image/png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #98cc4e;
+            --secondary: #fb0088;
+            --light: #FFFFFF;
+            --dark: #292929;
+            --bg: #F7F7F7;
+            --border: #e0e0e0;
+            --highlight: #ffd6e7;
+            --bubble1: #98cc4e; /* Green */
+            --bubble2: #fb0088; /* Pink */
+            --bubble3: #4ec5f1; /* Blue */
+            --bubble4: #ffcc4e; /* Yellow */
+            --bubble5: #a64efb; /* Purple */
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .header {
+            text-align: center;
+            padding: 1rem;
+            width: 100%;
+            background: var(--light);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 10;
+        }
+
+        .header h1 {
+            color: var(--primary);
+            font-size: 1.8rem;
+            margin-bottom: 0.3rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .game-container {
+            flex: 1;
+            width: 100%;
+            max-width: 500px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #gameCanvas {
+            background-color: var(--light);
+            display: block;
+            margin: 0 auto;
+            touch-action: none;
+        }
+
+        .game-ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            color: var(--dark);
+            font-weight: bold;
+            pointer-events: none;
+        }
+
+        .game-controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--light);
+            width: 100%;
+        }
+
+        .btn {
+            padding: 0.7rem 1.2rem;
+            border-radius: 6px;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--secondary);
+        }
+
+        .game-over {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .game-over-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .game-over h2 {
+            color: var(--secondary);
+            margin-bottom: 1rem;
+        }
+
+        .powerup-indicator {
+            position: absolute;
+            bottom: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            display: none;
+        }
+
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><i class="fas fa-gamepad"></i> Workflow Bubble Shooter</h1>
+    </div>
+
+    <div class="game-container">
+        <div class="game-ui">
+            <div class="score">Score: <span id="score">0</span></div>
+            <div class="level">Level: <span id="level">1</span></div>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+        <div class="powerup-indicator" id="powerupIndicator">
+            Bomb Ready! Next shot will explode
+        </div>
+    </div>
+
+    <div class="game-controls">
+        <button class="btn btn-primary" id="restartBtn">
+            <i class="fas fa-redo"></i> Restart
+        </button>
+    </div>
+
+    <div class="game-over" id="gameOver">
+        <div class="game-over-content">
+            <h2>Game Over!</h2>
+            <p>Your final score: <span id="finalScore">0</span></p>
+            <p>Level reached: <span id="finalLevel">1</span></p>
+            <button class="btn btn-primary" id="playAgainBtn">
+                <i class="fas fa-play"></i> Play Again
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Game variables
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreElement = document.getElementById("score");
+        const levelElement = document.getElementById("level");
+        const powerupIndicator = document.getElementById("powerupIndicator");
+        const gameOverScreen = document.getElementById("gameOver");
+        const finalScoreElement = document.getElementById("finalScore");
+        const finalLevelElement = document.getElementById("finalLevel");
+        const restartBtn = document.getElementById("restartBtn");
+        const playAgainBtn = document.getElementById("playAgainBtn");
+
+        // Set canvas size
+        function resizeCanvas() {
+            canvas.width = Math.min(500, window.innerWidth);
+            canvas.height = window.innerHeight - 150;
+        }
+        resizeCanvas();
+        window.addEventListener("resize", resizeCanvas);
+
+        // Game state
+        let score = 0;
+        let level = 1;
+        let lives = 3;
+        let gameRunning = false;
+        let animationId;
+        let bubbleRows = 5;
+        let bubbleSpeed = 1;
+        let powerupActive = false;
+
+        // Bubble colors
+        const bubbleColors = [
+            "var(--bubble1)",
+            "var(--bubble2)",
+            "var(--bubble3)",
+            "var(--bubble4)",
+            "var(--bubble5)"
+        ];
+
+        // Game objects
+        const shooter = {
+            x: canvas.width / 2,
+            y: canvas.height - 30,
+            radius: 15,
+            color: "var(--primary)",
+            angle: -Math.PI / 2,
+            power: 8
+        };
+
+        const nextBubble = {
+            x: canvas.width - 40,
+            y: 30,
+            radius: 15,
+            color: getRandomColor()
+        };
+
+        let currentBubble = {
+            x: shooter.x,
+            y: shooter.y,
+            radius: 15,
+            color: getRandomColor(),
+            dx: 0,
+            dy: 0,
+            active: false
+        };
+
+        let bubbles = [];
+        let floatingBubbles = [];
+
+        // Initialize game
+        function initGame() {
+            score = 0;
+            level = 1;
+            lives = 3;
+            bubbleRows = 5;
+            bubbleSpeed = 1;
+            scoreElement.textContent = "0";
+            levelElement.textContent = "1";
+            
+            // Create initial bubbles
+            createBubbles();
+            
+            // Reset shooter
+            shooter.x = canvas.width / 2;
+            currentBubble = {
+                x: shooter.x,
+                y: shooter.y,
+                radius: 15,
+                color: getRandomColor(),
+                dx: 0,
+                dy: 0,
+                active: false
+            };
+            
+            nextBubble.color = getRandomColor();
+            floatingBubbles = [];
+            powerupActive = false;
+            powerupIndicator.style.display = "none";
+            
+            gameRunning = true;
+            gameOverScreen.style.display = "none";
+            
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+            animate();
+        }
+
+        // Create bubble grid
+        function createBubbles() {
+            bubbles = [];
+            const bubbleRadius = 15;
+            const rows = bubbleRows;
+            const cols = Math.floor(canvas.width / (bubbleRadius * 2)) - 2;
+            
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    // Offset every other row
+                    const offset = row % 2 === 0 ? 0 : bubbleRadius;
+                    
+                    bubbles.push({
+                        x: col * (bubbleRadius * 2) + bubbleRadius + offset,
+                        y: row * (bubbleRadius * 2) + 50,
+                        radius: bubbleRadius,
+                        color: bubbleColors[Math.floor(Math.random() * bubbleColors.length)],
+                        row: row,
+                        col: col
+                    });
+                }
+            }
+        }
+
+        // Get random bubble color
+        function getRandomColor() {
+            return bubbleColors[Math.floor(Math.random() * bubbleColors.length)];
+        }
+
+        // Draw shooter
+        function drawShooter() {
+            ctx.beginPath();
+            ctx.arc(shooter.x, shooter.y, shooter.radius, 0, Math.PI * 2);
+            ctx.fillStyle = shooter.color;
+            ctx.fill();
+            ctx.closePath();
+            
+            // Draw shooter barrel
+            ctx.beginPath();
+            ctx.moveTo(shooter.x, shooter.y);
+            ctx.lineTo(
+                shooter.x + Math.cos(shooter.angle) * 30,
+                shooter.y + Math.sin(shooter.angle) * 30
+            );
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = shooter.color;
+            ctx.stroke();
+            
+            // Draw next bubble preview
+            ctx.beginPath();
+            ctx.arc(nextBubble.x, nextBubble.y, nextBubble.radius, 0, Math.PI * 2);
+            ctx.fillStyle = nextBubble.color;
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        // Draw bubbles
+        function drawBubbles() {
+            bubbles.forEach(bubble => {
+                ctx.beginPath();
+                ctx.arc(bubble.x, bubble.y, bubble.radius, 0, Math.PI * 2);
+                ctx.fillStyle = bubble.color;
+                ctx.fill();
+                ctx.closePath();
+            });
+            
+            floatingBubbles.forEach(bubble => {
+                ctx.beginPath();
+                ctx.arc(bubble.x, bubble.y, bubble.radius, 0, Math.PI * 2);
+                ctx.fillStyle = bubble.color;
+                ctx.fill();
+                ctx.closePath();
+            });
+        }
+
+        // Draw current bubble
+        function drawCurrentBubble() {
+            if (currentBubble.active) return;
+            
+            ctx.beginPath();
+            ctx.arc(currentBubble.x, currentBubble.y, currentBubble.radius, 0, Math.PI * 2);
+            ctx.fillStyle = currentBubble.color;
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        // Update game state
+        function update() {
+            // Move shooter with mouse/touch
+            if (gameRunning) {
+                shooter.x = Math.max(shooter.radius, Math.min(canvas.width - shooter.radius, shooter.x));
+                currentBubble.x = shooter.x;
+                
+                // Move active bubble
+                if (currentBubble.active) {
+                    currentBubble.x += currentBubble.dx;
+                    currentBubble.y += currentBubble.dy;
+                    
+                    // Wall collision
+                    if (currentBubble.x - currentBubble.radius < 0 || 
+                        currentBubble.x + currentBubble.radius > canvas.width) {
+                        currentBubble.dx = -currentBubble.dx;
+                    }
+                    
+                    // Ceiling collision
+                    if (currentBubble.y - currentBubble.radius < 0) {
+                        currentBubble.dy = -currentBubble.dy;
+                    }
+                    
+                    // Check if bubble hit the bottom
+                    if (currentBubble.y + currentBubble.radius > canvas.height) {
+                        currentBubble.active = false;
+                        currentBubble.y = shooter.y;
+                        currentBubble.x = shooter.x;
+                        loseLife();
+                    }
+                    
+                    // Check bubble collisions
+                    checkCollisions();
+                }
+                
+                // Move floating bubbles down
+                if (bubbles.length > 0) {
+                    bubbles.forEach(bubble => {
+                        bubble.y += bubbleSpeed * 0.2;
+                    });
+                    
+                    // Check if bubbles reached bottom
+                    if (bubbles.some(bubble => bubble.y + bubble.radius >= canvas.height - 20)) {
+                        gameOver();
+                    }
+                }
+                
+                // Move detached bubbles
+                floatingBubbles.forEach((bubble, index) => {
+                    bubble.y += 2;
+                    if (bubble.y - bubble.radius > canvas.height) {
+                        floatingBubbles.splice(index, 1);
+                    }
+                });
+            }
+        }
+
+        // Check bubble collisions
+        function checkCollisions() {
+            let bubbleAttached = false;
+            
+            // Check collision with existing bubbles
+            for (let i = 0; i < bubbles.length; i++) {
+                const bubble = bubbles[i];
+                const dx = currentBubble.x - bubble.x;
+                const dy = currentBubble.y - bubble.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < currentBubble.radius + bubble.radius) {
+                    // Calculate attachment position
+                    const angle = Math.atan2(dy, dx);
+                    currentBubble.x = bubble.x + Math.cos(angle) * (currentBubble.radius + bubble.radius);
+                    currentBubble.y = bubble.y + Math.sin(angle) * (currentBubble.radius + bubble.radius);
+                    
+                    // Add to bubbles array
+                    const newBubble = {
+                        x: currentBubble.x,
+                        y: currentBubble.y,
+                        radius: currentBubble.radius,
+                        color: currentBubble.color,
+                        row: Math.floor((currentBubble.y - 50) / (currentBubble.radius * 2)),
+                        col: Math.floor(currentBubble.x / (currentBubble.radius * 2))
+                    };
+                    
+                    bubbles.push(newBubble);
+                    currentBubble.active = false;
+                    bubbleAttached = true;
+                    
+                    // Check for matches
+                    if (powerupActive) {
+                        // Bomb powerup - explode nearby bubbles
+                        explodeBubbles(newBubble);
+                        powerupActive = false;
+                        powerupIndicator.style.display = "none";
+                    } else {
+                        const matches = findMatches(newBubble);
+                        if (matches.length >= 3) {
+                            removeBubbles(matches);
+                        }
+                    }
+                    
+                    // Prepare next bubble
+                    currentBubble.color = nextBubble.color;
+                    nextBubble.color = getRandomColor();
+                    
+                    // Random chance for powerup
+                    if (Math.random() < 0.1) {
+                        powerupActive = true;
+                        powerupIndicator.style.display = "block";
+                    }
+                    
+                    break;
+                }
+            }
+            
+            // If no collision but reached top, attach to top
+            if (!bubbleAttached && currentBubble.y - currentBubble.radius <= 30) {
+                bubbles.push({
+                    x: currentBubble.x,
+                    y: 30 + currentBubble.radius,
+                    radius: currentBubble.radius,
+                    color: currentBubble.color,
+                    row: 0,
+                    col: Math.floor(currentBubble.x / (currentBubble.radius * 2))
+                });
+                
+                currentBubble.active = false;
+                currentBubble.color = nextBubble.color;
+                nextBubble.color = getRandomColor();
+            }
+            
+            // Reset bubble if attached
+            if (!currentBubble.active) {
+                currentBubble.x = shooter.x;
+                currentBubble.y = shooter.y;
+                currentBubble.dx = 0;
+                currentBubble.dy = 0;
+            }
+        }
+
+        // Find matching bubbles
+        function findMatches(bubble) {
+            const matches = [bubble];
+            const checked = new Set();
+            const toCheck = [bubble];
+            
+            while (toCheck.length > 0) {
+                const current = toCheck.pop();
+                checked.add(current);
+                
+                // Check all bubbles for adjacency
+                bubbles.forEach(b => {
+                    if (!checked.has(b) && b.color === current.color) {
+                        const dx = b.x - current.x;
+                        const dy = b.y - current.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance < current.radius * 2 + 2) {
+                            matches.push(b);
+                            toCheck.push(b);
+                        }
+                    }
+                });
+            }
+            
+            return matches;
+        }
+
+        // Remove matched bubbles
+        function removeBubbles(matches) {
+            // Add to score
+            score += matches.length * 10 * level;
+            scoreElement.textContent = score;
+            
+            // Remove matched bubbles
+            bubbles = bubbles.filter(bubble => !matches.includes(bubble));
+            
+            // Check for floating bubbles
+            checkFloatingBubbles();
+            
+            // Check level completion
+            if (bubbles.length === 0) {
+                levelUp();
+            }
+        }
+
+        // Explode bubbles (bomb powerup)
+        function explodeBubbles(centerBubble) {
+            const explodedBubbles = [];
+            
+            bubbles.forEach(bubble => {
+                const dx = bubble.x - centerBubble.x;
+                const dy = bubble.y - centerBubble.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < centerBubble.radius * 4) {
+                    explodedBubbles.push(bubble);
+                }
+            });
+            
+            if (explodedBubbles.length > 0) {
+                // Add to score
+                score += explodedBubbles.length * 15 * level;
+                scoreElement.textContent = score;
+                
+                // Remove exploded bubbles
+                bubbles = bubbles.filter(bubble => !explodedBubbles.includes(bubble));
+                
+                // Check for floating bubbles
+                checkFloatingBubbles();
+                
+                // Check level completion
+                if (bubbles.length === 0) {
+                    levelUp();
+                }
+            }
+        }
+
+        // Check for floating bubbles
+        function checkFloatingBubbles() {
+            if (bubbles.length === 0) return;
+            
+            const attached = new Set();
+            const toCheck = [];
+            
+            // Start with bubbles attached to top
+            bubbles.forEach(bubble => {
+                if (bubble.y <= 50 + bubble.radius) {
+                    attached.add(bubble);
+                    toCheck.push(bubble);
+                }
+            });
+            
+            // Flood fill to find all attached bubbles
+            while (toCheck.length > 0) {
+                const current = toCheck.pop();
+                
+                bubbles.forEach(bubble => {
+                    if (!attached.has(bubble)) {
+                        const dx = bubble.x - current.x;
+                        const dy = bubble.y - current.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance < current.radius * 2 + 2) {
+                            attached.add(bubble);
+                            toCheck.push(bubble);
+                        }
+                    }
+                });
+            }
+            
+            // Detach floating bubbles
+            const floating = bubbles.filter(bubble => !attached.has(bubble));
+            if (floating.length > 0) {
+                floating.forEach(bubble => {
+                    floatingBubbles.push(bubble);
+                });
+                
+                bubbles = bubbles.filter(bubble => attached.has(bubble));
+                
+                // Add to score
+                score += floating.length * 5 * level;
+                scoreElement.textContent = score;
+            }
+        }
+
+        // Level up
+        function levelUp() {
+            level++;
+            levelElement.textContent = level;
+            bubbleRows = Math.min(10, 5 + level);
+            bubbleSpeed = Math.min(3, 1 + level * 0.2);
+            
+            // Small delay before next level
+            setTimeout(() => {
+                createBubbles();
+            }, 1000);
+        }
+
+        // Lose a life
+        function loseLife() {
+            lives--;
+            if (lives <= 0) {
+                gameOver();
+            }
+        }
+
+        // Game over
+        function gameOver() {
+            gameRunning = false;
+            finalScoreElement.textContent = score;
+            finalLevelElement.textContent = level;
+            gameOverScreen.style.display = "flex";
+        }
+
+        // Main game loop
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            drawBubbles();
+            drawShooter();
+            drawCurrentBubble();
+            update();
+            
+            animationId = requestAnimationFrame(animate);
+        }
+
+        // Event listeners
+        canvas.addEventListener("mousemove", (e) => {
+            const rect = canvas.getBoundingClientRect();
+            shooter.x = e.clientX - rect.left;
+            
+            // Update angle for shooter direction
+            const dy = shooter.y - (e.clientY - rect.top);
+            const dx = shooter.x - (e.clientX - rect.left);
+            shooter.angle = Math.atan2(dy, dx);
+        });
+
+        canvas.addEventListener("touchmove", (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches[0];
+            shooter.x = touch.clientX - rect.left;
+            
+            // Update angle for shooter direction
+            const dy = shooter.y - (touch.clientY - rect.top);
+            const dx = shooter.x - (touch.clientX - rect.left);
+            shooter.angle = Math.atan2(dy, dx);
+        }, { passive: false });
+
+        canvas.addEventListener("click", (e) => {
+            if (!currentBubble.active && gameRunning) {
+                const rect = canvas.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const clickY = e.clientY - rect.top;
+                
+                // Calculate direction
+                const angle = Math.atan2(clickY - shooter.y, clickX - shooter.x);
+                
+                // Set bubble velocity
+                currentBubble.dx = Math.cos(angle) * shooter.power;
+                currentBubble.dy = Math.sin(angle) * shooter.power;
+                currentBubble.active = true;
+            }
+        });
+
+        canvas.addEventListener("touchend", (e) => {
+            if (!currentBubble.active && gameRunning) {
+                e.preventDefault();
+                const rect = canvas.getBoundingClientRect();
+                const touch = e.changedTouches[0];
+                const touchX = touch.clientX - rect.left;
+                const touchY = touch.clientY - rect.top;
+                
+                // Calculate direction
+                const angle = Math.atan2(touchY - shooter.y, touchX - shooter.x);
+                
+                // Set bubble velocity
+                currentBubble.dx = Math.cos(angle) * shooter.power;
+                currentBubble.dy = Math.sin(angle) * shooter.power;
+                currentBubble.active = true;
+            }
+        }, { passive: false });
+
+        restartBtn.addEventListener("click", initGame);
+        playAgainBtn.addEventListener("click", initGame);
+
+        // Start game
+        initGame();
+    </script>
+</body>
+</html>
